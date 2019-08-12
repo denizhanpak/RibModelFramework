@@ -13,6 +13,8 @@ class PANSEModel: public Model
 	private:
 		PANSEParameter *parameter;
 		unsigned RFPCountColumn;
+		std::vector <double> currentSigmas;
+		std::vector <double> proposedSigmas;
 		double calculateLogLikelihoodPerCodonPerGene(double currAlpha, double currLambdaPrime,
 				unsigned currRFPObserved, double phiValue, double prevSigma);
 
@@ -127,16 +129,11 @@ class PANSEModel: public Model
         double GeneralizedIntegralLog(double p, double z);
         double elongationProbability(double currAlpha, double currLambda, double currNSE);
         double elongationProbabilityLog(double currAlpha, double currLambda, double currNSE);
-        double elongationUnitilIndexProbability(int index, std::vector <double> lambdas, std::vector <double> NSERates);
-        
-        double elongationUnitilIndexProbabilityLog(int index, std::vector <double> lambdas, std::vector <double> NSERates);
-        double prob_Y_g(double curralpha, int sample_size, double lambda_prime, double psi, double prevdelta);
-        double prob_Y_g_log(double curralpha, int sample_size, double lambda_prime, double psi, double prevdelta);
-        
-        //Psi-Phi Conversion Functions
-        double psi2phi(double psi, double sigma);
-        double phi2psi(double phi, double sigma);
 
+        double elongationUnitilIndexProbability(int index, std::vector <double> lambdas, std::vector <double> NSERates);
+        double elongationUnitilIndexProbabilityLog(int index, std::vector <double> lambdas, std::vector <double> NSERates);
+        void generateSigmas(bool proposed);
+        
 	protected:
 };
 

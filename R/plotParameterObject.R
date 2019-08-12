@@ -208,7 +208,7 @@ lower.panel.plot <- function(x, y, ...)
 }
 
 
-confidenceInterval.plot <- function(x, y, sd.x=NULL, sd.y=NULL, ...){
+confidenceIntervalPlot <- function(x, y, sd.x=NULL, sd.y=NULL, ...){
   points(x, y, ...)
   if(!is.null(sd.y)){
     y.up <- sd.y[,2]

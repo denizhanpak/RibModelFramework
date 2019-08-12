@@ -165,10 +165,7 @@ void PAParameter::initRFPValuesFromFile(std::string filename)
 				cat = 0;
 				variableName = tmp.substr(1, tmp.size() - 2);
 			}
-			else if (flag == 2)
-			{
-				my_print("here\n");
-			}
+
 			else if (flag == 3) //user comment, continue
 			{
 				continue;
