@@ -136,12 +136,16 @@ void PANSEModel::calculateLogLikelihoodRatioPerGroupingPerCategory(std::string g
     double propAdjustmentTerm = 0;
     Gene *gene;
     unsigned index = SequenceSummary::codonToIndex(grouping);
-    double U = 1;//getPartitionFunction(0, false)/genome.getSumRFP();
+    double U = getPartitionFunction(0, false)/genome.getSumRFP();
     double propCodonSigma = 0.0;
     double propSigma, currSigma;
-    std::vector<double> codonSigmas;
+    //std::vector<double> codonSigmas;
 
-    codonSigmas.resize(getGroupListSize(), 0.0);
+    //codonSigmas.resize(getGroupListSize(), 0.0);
+    currSigmaCalculationSummationFor1 = 0;
+    currSigmaCalculationSummationFor2 = 0;
+    propSigmaCalculationSummationFor1 = 0;
+    propSigmaCalculationSummationFor2 = 0;
 
 #ifdef _OPENMP
     //#ifndef __APPLE__
@@ -150,8 +154,8 @@ void PANSEModel::calculateLogLikelihoodRatioPerGroupingPerCategory(std::string g
     for (unsigned i = 0u; i < genome.getGenomeSize(); i++)
     {
         gene = &genome.getGene(i);
-        currSigma = 0.0;
-        propSigma = 0.0;
+        //currSigma = 0.0;
+        //propSigma = 0.0;
         // which mixture element does this gene belong to
         unsigned mixtureElement = parameter->getMixtureAssignment(i);
 
@@ -178,29 +182,20 @@ void PANSEModel::calculateLogLikelihoodRatioPerGroupingPerCategory(std::string g
             propLambdaPrime = getParameterForCategory(lambdaPrimeCategory, PANSEParameter::lmPri, codon, true);
             propNSERate = getParameterForCategory(alphaCategory, PANSEParameter::nse, codon, true);
 
-            if(codonSigmas[codonIndex] == 0.0)
-            {
-                codonSigmas[codonIndex] = elongationProbabilityLog(1 - currAlpha, currLambdaPrime, 1/currNSERate);
-            }
 
-            currSigma += codonSigmas[codonIndex];
+            currSigma = elongationUntilIndexApproximation2Probability(currAlpha, currLambdaPrime / U, 1/currNSERate, false);
+            propSigma = elongationUntilIndexApproximation2Probability(propAlpha, propLambdaPrime / U, 1/propNSERate, true);
 
 
 
             if(codon == grouping){
-                if (propCodonSigma == 0.0) propCodonSigma = elongationProbabilityLog(propAlpha, propLambdaPrime, 1/propNSERate);
-
-                propSigma += propCodonSigma;
+                //if (propCodonSigma == 0.0) propCodonSigma = elongationProbabilityLog(propAlpha, propLambdaPrime, 1/propNSERate);
+                //propSigma += propCodonSigma;
                 //if (grouping == "ACA") my_print("The prop sigma is %\n", propSigma);
                 logLikelihood_proposed += calculateLogLikelihoodPerCodonPerGene(propAlpha, propLambdaPrime, positionalRFPCount,
-                                   phiValue, std::exp(propSigma));
+                                   phiValue, propSigma);
                 logLikelihood += calculateLogLikelihoodPerCodonPerGene(currAlpha, currLambdaPrime, positionalRFPCount,
-                                   phiValue, std::exp(currSigma));
-            }
-
-            else{
-                propSigma += codonSigmas[positions[positionIndex]];
-                continue;
+                                   phiValue, currSigma);
             }
 
         }
@@ -257,18 +252,17 @@ void PANSEModel::calculateLogLikelihoodRatioForHyperParameters(Genome &genome, u
     logProbabilityRatio[0] = lpr;
 
     Gene *gene;
-    std::vector <double> currCodonSigmas;
-    std::vector <double> propCodonSigmas;
-    currCodonSigmas.resize(getGroupListSize(), 0.0);
-    propCodonSigmas.resize(getGroupListSize(), 0.0);
+    currSigmaCalculationSummationFor1 = 0;
+    currSigmaCalculationSummationFor2 = 0;
+    propSigmaCalculationSummationFor1 = 0;
+    propSigmaCalculationSummationFor2 = 0;
+    double currSigma, propSigma;
     double logLikelihood, logLikelihood_proposed;
     lpr = 0.0;
 
     for (unsigned i = 0u; i < genome.getGenomeSize(); i++)
     {
         gene = &genome.getGene(i);
-        double currSigma = 1.0;
-        double propSigma = 1.0;
         // which mixture element does this gene belong to
         unsigned mixtureElement = parameter->getMixtureAssignment(i);
         double currU = getPartitionFunction(i, false);
@@ -291,14 +285,8 @@ void PANSEModel::calculateLogLikelihoodRatioForHyperParameters(Genome &genome, u
             double currLambdaPrime = getParameterForCategory(lambdaPrimeCategory, PANSEParameter::lmPri, codon, false);
             double currNSERate = getParameterForCategory(alphaCategory, PANSEParameter::nse, codon, false);
 
-            if(currCodonSigmas[codonIndex] == 0.0)
-            {
-                currCodonSigmas[codonIndex] = elongationProbability(1 - currAlpha, currU * currLambdaPrime, 1/currNSERate);
-                propCodonSigmas[codonIndex] = elongationProbability(1 - currAlpha, propU * currLambdaPrime, 1/currNSERate);
-            }
-
-            currSigma *= currCodonSigmas[codonIndex];
-            propSigma *= propCodonSigmas[codonIndex];
+            currSigma = elongationUntilIndexApproximation2Probability(currAlpha, currLambdaPrime / currU, 1/currNSERate, false);
+            propSigma = elongationUntilIndexApproximation2Probability(currAlpha, currLambdaPrime / propU, 1/currNSERate, true);
 
             logLikelihood += calculateLogLikelihoodPerCodonPerGene(currAlpha, currLambdaPrime, positionalRFPCount,
                                 phiValue, currSigma);
@@ -835,13 +823,71 @@ double PANSEModel::elongationProbabilityLog(double currAlpha, double currLambda,
     return (currLambda * currNSE) + currAlpha * (std::log(currLambda) + std::log(currNSE)) + UpperIncompleteGammaLog(1- currAlpha, currLambda * currNSE);
 }
 
-double PANSEModel::elongationUnitilIndexProbability(int index, std::vector <double> lambdas, std::vector <double> NSERates){
+double PANSEModel::elongationUntilIndexProbability(int index, std::vector <double> lambdas, std::vector <double> NSERates){
     return 0;
 }
 
-double PANSEModel::elongationUnitilIndexProbabilityLog(int index, std::vector <double> lambdas, std::vector <double> NSERates){
+double PANSEModel::elongationUntilIndexProbabilityLog(int index, std::vector <double> lambdas, std::vector <double> NSERates){
     return 0;
 }
+
+
+double PANSEModel::elongationUntilIndexApproximation1Probability(double alpha, double lambda, double v, bool proposed)
+{
+    if (proposed)
+    {
+        propSigmaCalculationSummationFor1 += (alpha/(lambda * v));
+        return 1 - propSigmaCalculationSummationFor1;
+    }
+    else
+    {
+        currSigmaCalculationSummationFor1 += (alpha/(lambda * v));
+        return 1 - currSigmaCalculationSummationFor1;
+    }
+}
+
+double PANSEModel::elongationUntilIndexApproximation2Probability(double alpha, double lambda, double v, bool proposed)
+{
+    if (proposed)
+    {
+        propSigmaCalculationSummationFor2 += (alpha/(lambda * v)) *
+                elongationUntilIndexApproximation1Probability(alpha, lambda, v, proposed)
+                + (alpha/(lambda * lambda * v * v));
+        return 1 + propSigmaCalculationSummationFor1;
+    }
+    else
+    {
+        currSigmaCalculationSummationFor2 += (alpha/(lambda * v)) *
+                elongationUntilIndexApproximation1Probability(alpha, lambda, v, proposed)
+                + (alpha/(lambda * lambda * v * v));
+        return 1 + currSigmaCalculationSummationFor1;
+    }
+}
+
+double PANSEModel::elongationUntilIndexApproximation1ProbabilityLog(double alpha, double lambda, double v, bool proposed)
+{
+    if (proposed)
+    {
+        propSigmaCalculationSummationFor1 -= (alpha/(lambda * v));
+        return propSigmaCalculationSummationFor1;
+    }
+    currSigmaCalculationSummationFor1 -= (alpha/(lambda * v));
+    return currSigmaCalculationSummationFor1;
+}
+double PANSEModel::elongationUntilIndexApproximation2ProbabilityLog(double alpha, double lambda, double v, bool proposed)
+{
+    if (proposed)
+       {
+        propSigmaCalculationSummationFor2 += -(alpha/(lambda * v)) + (alpha/(lambda * lambda * v * v))
+                   + (alpha/(lambda * v)) * (alpha/(lambda * v)) / 2;
+           return propSigmaCalculationSummationFor2;
+       }
+       currSigmaCalculationSummationFor2 += -(alpha/(lambda * v)) + (alpha/(lambda * lambda * v * v))
+                           + (alpha/(lambda * v)) * (alpha/(lambda * v)) / 2;
+       return currSigmaCalculationSummationFor2;
+
+}
+
 
 double PANSEModel::prob_Y_g(double curralpha, int sample_size, double lambda_prime, double psi, double prevdelta){
     double term1, term2, term3;
